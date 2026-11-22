@@ -1,0 +1,559 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Moview — See your seat before you book</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Bebas+Neue&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0b0b10;
+    --panel: #14141c;
+    --panel-2: #1c1c27;
+    --line: #2a2a38;
+    --text: #f1f0f5;
+    --muted: #8d8ba0;
+    --accent: #ffb547;
+    --accent-ink: #1a1206;
+    --taken: #34323f;
+    --selected: #ffb547;
+    --premium: #b98cff;
+    --good: #5fd39a;
+    --warn: #ffcf5c;
+    --bad: #ff7a7a;
+    --radius: 16px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: var(--bg); color: var(--text); font-family: Inter, system-ui, sans-serif; }
+  body { min-height: 100vh; }
+  button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 18px 28px; border-bottom: 1px solid var(--line);
+  }
+  .logo { font-family: "Bebas Neue", sans-serif; font-size: 30px; letter-spacing: 2px; }
+  .logo span { color: var(--accent); }
+  .tag { color: var(--muted); font-size: 14px; }
+
+  main {
+    display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+    gap: 24px; padding: 24px 28px 120px; max-width: 1440px; margin: 0 auto;
+  }
+  @media (max-width: 980px) { main { grid-template-columns: 1fr; padding: 16px 16px 140px; } header { padding: 14px 16px; } }
+
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; }
+  .card + .card { margin-top: 20px; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 1.4px; color: var(--muted); font-weight: 600; margin-bottom: 14px; }
+
+  /* Movies */
+  .movies { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .movie {
+    text-align: left; border-radius: 12px; overflow: hidden; border: 2px solid transparent;
+    background: var(--panel-2); transition: border-color .2s, transform .2s;
+  }
+  .movie:hover { transform: translateY(-2px); }
+  .movie.active { border-color: var(--accent); }
+  .poster { aspect-ratio: 3/2; display: grid; place-items: end start; padding: 10px; font-family: "Bebas Neue"; font-size: 24px; line-height: .95; letter-spacing: 1px; }
+  .movie .meta { padding: 8px 10px 10px; font-size: 12px; color: var(--muted); }
+
+  .chips { display: flex; gap: 8px; flex-wrap: wrap; }
+  .chip {
+    padding: 9px 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel-2);
+    font-size: 13px; font-weight: 500; transition: all .15s;
+  }
+  .chip:hover { border-color: var(--muted); }
+  .chip.active { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .chip small { display: block; font-size: 12px; opacity: .7; font-weight: 400; }
+  .row-gap { height: 14px; }
+
+  /* Seat map */
+  .screen-arc {
+    margin: 4px auto 18px; width: 78%;
+    text-align: center; font-size: 12px; letter-spacing: 4px; color: var(--muted);
+  }
+  .screen-arc svg { display: block; width: 100%; height: 22px; }
+  .seatmap { --seat: clamp(12px, 1.9vw, 26px); display: flex; flex-direction: column; gap: 7px; align-items: center; overflow-x: auto; padding-bottom: 6px; }
+  .srow { display: flex; align-items: center; gap: 4px; }
+  .rlabel { width: 18px; text-align: center; font-size: 12px; color: var(--muted); }
+  .aisle { width: 12px; }
+  .seat {
+    width: var(--seat); height: calc(var(--seat) * .9); border-radius: 6px 6px 4px 4px;
+    border: 1.5px solid #4a4860; position: relative; transition: transform .12s, background .12s;
+  }
+  .seat.premium { border-color: var(--premium); }
+  .seat:hover:not(.taken) { transform: scale(1.18); background: rgba(255,181,71,.25); }
+  .seat.taken { background: var(--taken); border-color: var(--taken); cursor: not-allowed; }
+  .seat.sel { background: var(--selected); border-color: var(--selected); }
+  .seat.viewing { outline: 2px solid #fff; outline-offset: 2px; }
+  .legend { display: flex; gap: 16px; justify-content: center; margin-top: 18px; font-size: 12px; color: var(--muted); flex-wrap: wrap; }
+  .legend i { display: inline-block; width: 14px; height: 13px; border-radius: 4px; border: 1.5px solid #4a4860; vertical-align: -2px; margin-right: 6px; }
+
+  /* Preview */
+  .preview { position: sticky; top: 20px; }
+  .viewport {
+    position: relative; aspect-ratio: 16/10; border-radius: 12px; overflow: hidden; background: #000;
+    border: 1px solid var(--line);
+  }
+  #three { width: 100%; height: 100%; display: block; cursor: grab; }
+  #three:active { cursor: grabbing; }
+  .badge {
+    position: absolute; top: 12px; left: 12px; background: rgba(10,10,16,.75); backdrop-filter: blur(8px);
+    padding: 8px 12px; border-radius: 10px; font-size: 13px; font-weight: 600;
+  }
+  .badge small { display: block; color: var(--muted); font-weight: 400; font-size: 12px; }
+  .hint { position: absolute; bottom: 12px; right: 12px; font-size: 12px; color: #bbb; background: rgba(0,0,0,.5); padding: 5px 9px; border-radius: 8px; }
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 14px; }
+  .stat { background: var(--panel-2); border-radius: 10px; padding: 12px; }
+  .stat b { display: block; font-size: 15px; margin-top: 4px; }
+  .stat span { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+  .meter { height: 4px; background: var(--line); border-radius: 4px; margin-top: 8px; overflow: hidden; }
+  .meter > div { height: 100%; border-radius: 4px; transition: width .4s, background .4s; }
+  .verdict { margin-top: 14px; font-size: 14px; color: var(--muted); line-height: 1.5; }
+  .verdict strong { color: var(--text); }
+
+  /* Checkout bar */
+  .bar {
+    position: fixed; left: 0; right: 0; bottom: 0; padding: 14px 28px;
+    background: rgba(14,14,20,.92); backdrop-filter: blur(12px); border-top: 1px solid var(--line);
+    display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    transform: translateY(100%); transition: transform .3s;
+  }
+  .bar.show { transform: none; }
+  .bar .info { font-size: 14px; color: var(--muted); }
+  .bar .info b { color: var(--text); font-size: 20px; margin-right: 10px; }
+  .btn {
+    background: var(--accent); color: var(--accent-ink); font-weight: 700; padding: 14px 26px; border-radius: 12px;
+    transition: transform .15s, box-shadow .15s;
+  }
+  .btn:hover { transform: translateY(-1px); }
+  @media (max-width: 600px) { .bar { padding: 12px 16px; } .btn { padding: 12px 18px; } .movies { grid-template-columns: 1fr 1fr 1fr; } .poster { font-size: 17px; } }
+
+  /* Ticket modal */
+  .modal { position: fixed; inset: 0; background: rgba(0,0,0,.7); display: none; place-items: center; padding: 16px; z-index: 10; }
+  .modal.show { display: grid; animation: fade .25s; }
+  @keyframes fade { from { opacity: 0; } }
+  .ticket {
+    width: min(380px, 100%); background: var(--text); color: #15131c; border-radius: 18px; overflow: hidden;
+    animation: pop .35s cubic-bezier(.2,1.4,.4,1);
+  }
+  @keyframes pop { from { transform: translateY(30px) scale(.95); opacity: 0; } }
+  .ticket .top { padding: 22px; }
+  .ticket .ttl { font-family: "Bebas Neue"; font-size: 34px; letter-spacing: 1px; line-height: 1; }
+  .ticket .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 18px; font-size: 13px; }
+  .ticket .grid span { display: block; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: #5f5b70; }
+  .ticket .grid b { font-size: 15px; }
+  .perf { border-top: 2px dashed #c9c6d6; position: relative; }
+  .perf::before, .perf::after { content: ""; position: absolute; top: -12px; width: 22px; height: 22px; border-radius: 50%; background: rgba(0,0,0,.7); }
+  .perf::before { left: -11px; } .perf::after { right: -11px; }
+  .ticket .bottom { padding: 18px 22px 22px; display: flex; align-items: center; justify-content: space-between; }
+  .barcode { height: 44px; width: 180px; background: repeating-linear-gradient(90deg, #15131c 0 2px, transparent 2px 4px, #15131c 4px 5px, transparent 5px 8px); }
+  .ticket .close { background: #15131c; color: var(--text); padding: 10px 16px; border-radius: 10px; font-weight: 600; font-size: 13px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">MO<span>VIEW</span></div>
+  <div class="tag">See the view from your seat before you book</div>
+</header>
+
+<main>
+  <section>
+    <div class="card">
+      <h2>Now showing</h2>
+      <div class="movies" id="movies"></div>
+      <div class="row-gap"></div>
+      <h2>Date</h2>
+      <div class="chips" id="dates"></div>
+      <div class="row-gap"></div>
+      <h2>Showtime</h2>
+      <div class="chips" id="times"></div>
+    </div>
+
+    <div class="card">
+      <h2>Pick your seats <span style="text-transform:none;letter-spacing:0;font-weight:400">· hover to preview, click to select</span></h2>
+      <div class="screen-arc"><svg viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true"><path d="M1 9 Q50 -3 99 9" fill="none" stroke="var(--accent)" stroke-width="3" vector-effect="non-scaling-stroke" stroke-linecap="round"/></svg>SCREEN</div>
+      <div class="seatmap" id="seatmap"></div>
+      <div class="legend">
+        <span><i></i>Classic ₹220</span>
+        <span><i style="border-color:var(--premium)"></i>Recliner ₹380</span>
+        <span><i style="background:var(--selected);border-color:var(--selected)"></i>Selected</span>
+        <span><i style="background:var(--taken);border-color:var(--taken)"></i>Taken</span>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="card preview">
+      <h2>View from your seat</h2>
+      <div class="viewport">
+        <canvas id="three"></canvas>
+        <div class="badge" id="badge">Seat F7<small>Classic · Row F</small></div>
+        <div class="hint">Drag to look around</div>
+      </div>
+      <div class="stats">
+        <div class="stat"><span>Viewing angle</span><b id="sAngle">—</b><div class="meter"><div id="mAngle"></div></div></div>
+        <div class="stat"><span>Distance</span><b id="sDist">—</b><div class="meter"><div id="mDist"></div></div></div>
+        <div class="stat"><span>View score</span><b id="sScore">—</b><div class="meter"><div id="mScore"></div></div></div>
+      </div>
+      <p class="verdict" id="verdict"></p>
+    </div>
+  </section>
+</main>
+
+<div class="bar" id="bar">
+  <div class="info"><b id="total">₹0</b><span id="seatList"></span></div>
+  <button class="btn" id="bookBtn">Book tickets</button>
+</div>
+
+<div class="modal" id="modal">
+  <div class="ticket">
+    <div class="top">
+      <div style="font-size:12px;letter-spacing:2px;color:#5f5b70;font-weight:600">MOVIEW · AUDI 3</div>
+      <div class="ttl" id="tMovie"></div>
+      <div class="grid">
+        <div><span>Date</span><b id="tDate"></b></div>
+        <div><span>Time</span><b id="tTime"></b></div>
+        <div><span>Seats</span><b id="tSeats"></b></div>
+        <div><span>Total</span><b id="tTotal"></b></div>
+      </div>
+    </div>
+    <div class="perf"></div>
+    <div class="bottom">
+      <div class="barcode"></div>
+      <button class="close" id="closeModal">Done</button>
+    </div>
+  </div>
+</div>
+
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+</script>
+<script type="module">
+import * as THREE from "three";
+
+/* ---------- Data ---------- */
+const MOVIES = [
+  { title: "Neon Tide", genre: "Sci-fi · 2h 14m", colors: ["#ff4f8b", "#3b1d8f"] },
+  { title: "The Last Orchard", genre: "Drama · 1h 58m", colors: ["#f6b04a", "#7a2e12"] },
+  { title: "Glass Mountain", genre: "Adventure · 2h 31m", colors: ["#3fd0c9", "#0c3550"] },
+];
+const TIMES = ["10:15 AM", "1:40 PM", "4:30 PM", "7:15 PM", "10:30 PM"];
+const ROWS = "ABCDEFGHIJ".split("");
+const COLS = 14;
+const AISLES = [4, 10];          // gap before these column indexes
+const PREMIUM_ROWS = ["I", "J"];
+const PRICE = { classic: 220, premium: 380 };
+const MAX_SEATS = 8;
+
+const state = { movie: 0, date: 0, time: 3, selected: new Set(), viewing: "F7", taken: new Set() };
+
+/* ---------- Helpers ---------- */
+function rng(seed) { return () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646; }
+const $ = (id) => document.getElementById(id);
+const seatId = (r, c) => `${ROWS[r]}${c + 1}`;
+const parseSeat = (id) => ({ r: ROWS.indexOf(id[0]), c: +id.slice(1) - 1 });
+const isPremium = (id) => PREMIUM_ROWS.includes(id[0]);
+
+/* ---------- Pickers ---------- */
+function renderMovies() {
+  $("movies").innerHTML = MOVIES.map((m, i) => `
+    <button class="movie ${i === state.movie ? "active" : ""}" data-i="${i}">
+      <div class="poster" style="background:linear-gradient(150deg, ${m.colors[0]}, ${m.colors[1]})">${m.title}</div>
+      <div class="meta">${m.genre}</div>
+    </button>`).join("");
+  $("movies").querySelectorAll(".movie").forEach(b => b.onclick = () => { state.movie = +b.dataset.i; refreshShow(); renderMovies(); });
+}
+function renderDates() {
+  const today = new Date();
+  $("dates").innerHTML = Array.from({ length: 5 }, (_, i) => {
+    const d = new Date(today); d.setDate(today.getDate() + i);
+    const label = i === 0 ? "Today" : d.toLocaleDateString("en", { weekday: "short" });
+    return `<button class="chip ${i === state.date ? "active" : ""}" data-i="${i}">${label}<small>${d.toLocaleDateString("en", { day: "numeric", month: "short" })}</small></button>`;
+  }).join("");
+  $("dates").querySelectorAll(".chip").forEach(b => b.onclick = () => { state.date = +b.dataset.i; refreshShow(); renderDates(); });
+}
+function renderTimes() {
+  $("times").innerHTML = TIMES.map((t, i) => `<button class="chip ${i === state.time ? "active" : ""}" data-i="${i}">${t}</button>`).join("");
+  $("times").querySelectorAll(".chip").forEach(b => b.onclick = () => { state.time = +b.dataset.i; refreshShow(); renderTimes(); });
+}
+function dateLabel() {
+  const d = new Date(); d.setDate(d.getDate() + state.date);
+  return d.toLocaleDateString("en", { weekday: "short", day: "numeric", month: "short" });
+}
+
+/* ---------- Seat map ---------- */
+function refreshShow() {
+  const rand = rng(1 + state.movie * 97 + state.date * 13 + state.time * 7);
+  state.taken = new Set();
+  ROWS.forEach((_, r) => { for (let c = 0; c < COLS; c++) {
+    const centerBias = 1 - Math.abs(c - 6.5) / 9;
+    if (rand() < 0.18 + centerBias * 0.25) state.taken.add(seatId(r, c));
+  }});
+  state.selected.clear();
+  if (state.taken.has(state.viewing)) state.viewing = [...allSeats()].find(s => !state.taken.has(s) && s[0] === "F") || "F1";
+  renderSeats(); updateBar(); scene3d.setOccupancy(state.taken); viewSeat(state.viewing);
+}
+function* allSeats() { for (let r = 0; r < ROWS.length; r++) for (let c = 0; c < COLS; c++) yield seatId(r, c); }
+
+function renderSeats() {
+  const map = $("seatmap");
+  map.innerHTML = ROWS.map((row, r) => {
+    let html = `<div class="srow"><span class="rlabel">${row}</span>`;
+    for (let c = 0; c < COLS; c++) {
+      if (AISLES.includes(c)) html += `<span class="aisle"></span>`;
+      const id = seatId(r, c);
+      const cls = ["seat", isPremium(id) && "premium", state.taken.has(id) && "taken",
+        state.selected.has(id) && "sel", id === state.viewing && "viewing"].filter(Boolean).join(" ");
+      html += `<button class="${cls}" data-id="${id}" aria-label="Seat ${id}" title="${id}"></button>`;
+    }
+    return html + `<span class="rlabel">${row}</span></div>`;
+  }).join("");
+  map.querySelectorAll(".seat").forEach(btn => {
+    const id = btn.dataset.id;
+    if (state.taken.has(id)) return;
+    btn.onmouseenter = () => viewSeat(id);
+    btn.onclick = () => {
+      if (state.selected.has(id)) state.selected.delete(id);
+      else if (state.selected.size < MAX_SEATS) state.selected.add(id);
+      btn.classList.toggle("sel", state.selected.has(id));
+      viewSeat(id); updateBar();
+    };
+  });
+  map.onmouseleave = () => { const last = [...state.selected].pop(); if (last) viewSeat(last); };
+}
+
+function updateBar() {
+  const seats = [...state.selected].sort();
+  const total = seats.reduce((s, id) => s + (isPremium(id) ? PRICE.premium : PRICE.classic), 0);
+  $("total").textContent = `₹${total.toLocaleString("en-IN")}`;
+  $("seatList").textContent = seats.length ? `${seats.length} seat${seats.length > 1 ? "s" : ""} · ${seats.join(", ")}` : "";
+  $("bar").classList.toggle("show", seats.length > 0);
+}
+
+/* ---------- Seat geometry (shared by 3D + stats) ---------- */
+const SCREEN = { w: 15, h: 6.4, y: 4.6, z: 0 };
+const colX = (() => {
+  const xs = []; let x = 0;
+  for (let c = 0; c < COLS; c++) { if (AISLES.includes(c)) x += 0.7; xs.push(x); x += 0.72; }
+  const mid = (xs[0] + xs[xs.length - 1]) / 2;
+  return xs.map(v => v - mid);
+})();
+const rowZ = (r) => 5.5 + r * 1.2;
+const rowFloor = (r) => Math.max(0, r - 1) * 0.34;
+
+function seatStats(id) {
+  const { r, c } = parseSeat(id);
+  const x = colX[c], z = rowZ(r), eye = rowFloor(r) + 1.15;
+  const hAngle = Math.atan2(Math.abs(x), z) * 180 / Math.PI;
+  const vAngle = Math.atan2(SCREEN.y - eye, z) * 180 / Math.PI;
+  const fov = 2 * Math.atan2(SCREEN.w / 2, z) * 180 / Math.PI; // how much of your vision the screen fills
+  // ideal: screen fills ~40-55° horizontally, small side angle, low neck tilt
+  const fovScore = Math.max(0, 1 - Math.abs(fov - 48) / 45);
+  const angleScore = Math.max(0, 1 - hAngle / 22);
+  const tiltScore = Math.max(0, 1 - Math.max(0, vAngle - 4) / 20);
+  let blocked = 0;
+  if (r > 0) { const front = seatId(r - 1, c); if (state.taken.has(front)) blocked = rowFloor(r) - rowFloor(r - 1) < 0.1 ? 0.25 : 0.08; }
+  const score = Math.round(Math.max(0, (fovScore * 0.4 + angleScore * 0.35 + tiltScore * 0.25 - blocked)) * 100);
+  return { hAngle, vAngle, fov, z, score, blocked };
+}
+const meterColor = (v) => v > 0.7 ? "var(--good)" : v > 0.45 ? "var(--warn)" : "var(--bad)";
+
+function viewSeat(id) {
+  state.viewing = id;
+  document.querySelectorAll(".seat.viewing").forEach(s => s.classList.remove("viewing"));
+  document.querySelector(`.seat[data-id="${id}"]`)?.classList.add("viewing");
+  const { r } = parseSeat(id);
+  $("badge").innerHTML = `Seat ${id}<small>${isPremium(id) ? "Recliner" : "Classic"} · Row ${ROWS[r]} · ₹${isPremium(id) ? PRICE.premium : PRICE.classic}</small>`;
+
+  const s = seatStats(id);
+  const a = Math.max(0, 1 - s.hAngle / 22), d = Math.max(0, 1 - Math.abs(s.fov - 48) / 45);
+  $("sAngle").textContent = s.hAngle < 3 ? "Dead centre" : `${s.hAngle.toFixed(0)}° off-centre`;
+  $("sDist").textContent = `${(s.z * 1.6).toFixed(0)} m · fills ${s.fov.toFixed(0)}°`;
+  $("sScore").textContent = `${s.score} / 100`;
+  [["mAngle", a], ["mDist", d], ["mScore", s.score / 100]].forEach(([m, v]) => {
+    $(m).style.width = `${Math.max(6, v * 100)}%`; $(m).style.background = meterColor(v);
+  });
+  const notes = [];
+  if (s.fov > 75) notes.push("very close — you'll be turning your head to follow the action");
+  else if (s.fov < 30) notes.push("far back — the screen will feel smaller");
+  else notes.push("the screen fills your view comfortably");
+  if (s.hAngle > 14) notes.push("the picture will look skewed from this side");
+  if (s.vAngle > 16) notes.push("expect some neck tilt");
+  if (s.blocked > 0.1) notes.push("the person in front may block the bottom of the screen");
+  const label = s.score >= 80 ? "Great seat." : s.score >= 60 ? "Good seat." : s.score >= 40 ? "Okay seat." : "Not ideal.";
+  $("verdict").innerHTML = `<strong>${label}</strong> From ${id}, ${notes.join(", ")}.`;
+
+  scene3d.moveTo(id);
+}
+
+/* ---------- 3D theatre ---------- */
+const scene3d = (() => {
+  const canvas = $("three");
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color("#050508");
+  scene.fog = new THREE.Fog("#050508", 14, 30);
+  const camera = new THREE.PerspectiveCamera(62, 16 / 10, 0.05, 80);
+
+  // Animated screen texture
+  const sc = document.createElement("canvas"); sc.width = 1024; sc.height = 436;
+  const sctx = sc.getContext("2d");
+  const screenTex = new THREE.CanvasTexture(sc); screenTex.colorSpace = THREE.SRGBColorSpace;
+  const screen = new THREE.Mesh(new THREE.PlaneGeometry(SCREEN.w, SCREEN.h), new THREE.MeshBasicMaterial({ map: screenTex }));
+  screen.position.set(0, SCREEN.y, SCREEN.z); scene.add(screen);
+
+  function drawScreen(t) {
+    const m = MOVIES[state.movie], W = sc.width, H = sc.height;
+    const g = sctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, m.colors[1]); g.addColorStop(1, m.colors[0]);
+    sctx.fillStyle = g; sctx.fillRect(0, 0, W, H);
+    // sun / moon
+    sctx.fillStyle = "rgba(255,255,255,.85)";
+    sctx.beginPath(); sctx.arc(W * 0.7 + Math.sin(t * 0.2) * 40, H * 0.38, 46, 0, 7); sctx.fill();
+    // parallax hills
+    for (let L = 0; L < 3; L++) {
+      sctx.fillStyle = `rgba(0,0,0,${0.25 + L * 0.22})`;
+      sctx.beginPath(); sctx.moveTo(0, H);
+      for (let x = 0; x <= W; x += 16) {
+        const y = H * (0.6 + L * 0.12) + Math.sin(x * 0.006 * (L + 1) + t * (0.3 + L * 0.35)) * (28 - L * 6);
+        sctx.lineTo(x, y);
+      }
+      sctx.lineTo(W, H); sctx.fill();
+    }
+    sctx.fillStyle = "rgba(255,255,255,.92)";
+    sctx.font = "84px 'Bebas Neue', sans-serif"; sctx.textAlign = "center";
+    sctx.fillText(m.title.toUpperCase(), W / 2, H * 0.3);
+    screenTex.needsUpdate = true;
+  }
+
+  // Screen glow light
+  const glow = new THREE.PointLight("#ffd8a8", 60, 30, 1.6); glow.position.set(0, SCREEN.y, 2); scene.add(glow);
+  scene.add(new THREE.HemisphereLight("#3a3550", "#0a0a0f", 0.6));
+  // Wall sconces
+  [-1, 1].forEach(side => [8, 13, 18].forEach(z => {
+    const l = new THREE.PointLight("#ff9d4d", 3, 4, 2); l.position.set(side * 7.4, 3, z); scene.add(l);
+    const b = new THREE.Mesh(new THREE.SphereGeometry(0.07), new THREE.MeshBasicMaterial({ color: "#ffb36b" }));
+    b.position.copy(l.position); scene.add(b);
+  }));
+
+  // Room
+  const wallMat = new THREE.MeshStandardMaterial({ color: "#1d1622", roughness: 0.95 });
+  const floorMat = new THREE.MeshStandardMaterial({ color: "#1a1014", roughness: 1 });
+  const lastZ = rowZ(ROWS.length - 1) + 2;
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(16, lastZ + 2), floorMat);
+  floor.rotation.x = -Math.PI / 2; floor.position.set(0, 0, (lastZ + 2) / 2 - 1); scene.add(floor);
+  [-1, 1].forEach(s => {
+    const wall = new THREE.Mesh(new THREE.PlaneGeometry(lastZ + 2, 9), wallMat);
+    wall.rotation.y = -s * Math.PI / 2; wall.position.set(s * 7.6, 4.5, (lastZ + 2) / 2 - 1); scene.add(wall);
+  });
+  const front = new THREE.Mesh(new THREE.PlaneGeometry(16, 9), new THREE.MeshStandardMaterial({ color: "#0d0a10" }));
+  front.position.set(0, 4.5, -0.05); scene.add(front);
+  const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(16, lastZ + 2), wallMat);
+  ceiling.rotation.x = Math.PI / 2; ceiling.position.set(0, 8.5, (lastZ + 2) / 2 - 1); scene.add(ceiling);
+
+  // Stadium risers
+  const riserMat = new THREE.MeshStandardMaterial({ color: "#24151b", roughness: 1 });
+  ROWS.forEach((_, r) => {
+    const h = rowFloor(r); if (h <= 0) return;
+    const riser = new THREE.Mesh(new THREE.BoxGeometry(15.2, h, 1.2), riserMat);
+    riser.position.set(0, h / 2, rowZ(r)); scene.add(riser);
+  });
+
+  // Seats
+  const classicMat = new THREE.MeshStandardMaterial({ color: "#8a1f2c", roughness: 0.7 });
+  const premiumMat = new THREE.MeshStandardMaterial({ color: "#4b2a78", roughness: 0.6 });
+  const backGeo = new THREE.BoxGeometry(0.62, 0.78, 0.14);
+  const cushGeo = new THREE.BoxGeometry(0.62, 0.16, 0.52);
+  const headGeo = new THREE.SphereGeometry(0.13, 16, 12);
+  const bodyGeo = new THREE.CapsuleGeometry(0.2, 0.3, 4, 8);
+  const personMat = new THREE.MeshStandardMaterial({ color: "#0f0e14", roughness: 0.9 });
+  const seats = {}, people = {};
+  for (const id of allSeats()) {
+    const { r, c } = parseSeat(id);
+    const g = new THREE.Group();
+    const mat = isPremium(id) ? premiumMat : classicMat;
+    const back = new THREE.Mesh(backGeo, mat); back.position.set(0, 0.72, 0.28); back.rotation.x = -0.12;
+    const cush = new THREE.Mesh(cushGeo, mat); cush.position.set(0, 0.38, 0);
+    g.add(back, cush);
+    g.position.set(colX[c], rowFloor(r), rowZ(r)); scene.add(g); seats[id] = g;
+
+    const p = new THREE.Group();
+    const head = new THREE.Mesh(headGeo, personMat); head.position.set(0, 1.22, 0.12);
+    const body = new THREE.Mesh(bodyGeo, personMat); body.position.set(0, 0.82, 0.16);
+    p.add(head, body); p.visible = false; g.add(p); people[id] = p;
+  }
+
+  function setOccupancy(taken) { for (const id in people) people[id].visible = taken.has(id); }
+
+  // Camera animation
+  const camPos = new THREE.Vector3(0, 2.5, 18), camTarget = new THREE.Vector3(0, SCREEN.y, 0);
+  const wantPos = camPos.clone(), wantTarget = camTarget.clone();
+  let hidden = null;
+  function moveTo(id) {
+    const { r, c } = parseSeat(id);
+    wantPos.set(colX[c], rowFloor(r) + 1.15, rowZ(r) + 0.12);
+    wantTarget.set(colX[c] * 0.25, SCREEN.y - 0.4, 0);
+    if (hidden) hidden.visible = true;
+    hidden = seats[id]; hidden.visible = false;
+  }
+
+  // Drag to look around
+  let yaw = 0, pitch = 0, dragging = false, lx = 0, ly = 0;
+  canvas.addEventListener("pointerdown", e => { dragging = true; lx = e.clientX; ly = e.clientY; canvas.setPointerCapture(e.pointerId); });
+  canvas.addEventListener("pointermove", e => {
+    if (!dragging) return;
+    yaw = Math.max(-1.1, Math.min(1.1, yaw - (e.clientX - lx) * 0.005));
+    pitch = Math.max(-0.5, Math.min(0.5, pitch - (e.clientY - ly) * 0.004));
+    lx = e.clientX; ly = e.clientY;
+  });
+  const release = () => { dragging = false; };
+  canvas.addEventListener("pointerup", release); canvas.addEventListener("pointercancel", release);
+
+  function resize() {
+    const w = canvas.clientWidth, h = canvas.clientHeight;
+    if (canvas.width !== Math.floor(w * renderer.getPixelRatio())) { renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); }
+  }
+
+  const look = new THREE.Vector3(), clock = new THREE.Clock();
+  renderer.setAnimationLoop(() => {
+    const t = clock.getElapsedTime();
+    resize(); drawScreen(t);
+    glow.intensity = 55 + Math.sin(t * 1.3) * 8;
+    camPos.lerp(wantPos, 0.08); camTarget.lerp(wantTarget, 0.08);
+    if (!dragging) { yaw *= 0.94; pitch *= 0.94; }
+    camera.position.copy(camPos);
+    const dir = look.copy(camTarget).sub(camPos);
+    dir.applyAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
+    dir.y += pitch * dir.length();
+    camera.lookAt(look.add(camPos));
+    renderer.render(scene, camera);
+  });
+
+  return { moveTo, setOccupancy };
+})();
+
+/* ---------- Booking ---------- */
+$("bookBtn").onclick = () => {
+  const seats = [...state.selected].sort();
+  $("tMovie").textContent = MOVIES[state.movie].title;
+  $("tDate").textContent = dateLabel();
+  $("tTime").textContent = TIMES[state.time];
+  $("tSeats").textContent = seats.join(", ");
+  $("tTotal").textContent = $("total").textContent;
+  $("modal").classList.add("show");
+};
+$("closeModal").onclick = () => {
+  state.selected.forEach(id => state.taken.add(id));
+  state.selected.clear();
+  $("modal").classList.remove("show");
+  renderSeats(); updateBar(); scene3d.setOccupancy(state.taken);
+};
+
+renderMovies(); renderDates(); renderTimes(); refreshShow();
+</script>
+</body>
+</html>
